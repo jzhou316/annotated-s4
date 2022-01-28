@@ -110,6 +110,10 @@ ENV/
 env.bak/
 venv.bak/
 
+cenv/
+checkpoints/
+sample.png
+
 # Spyder project settings
 .spyderproject
 .spyproject

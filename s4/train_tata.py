@@ -8,7 +8,12 @@ from flax import linen as nn
 from flax.training import checkpoints, train_state
 from tqdm import tqdm
 from .data import Datasets
+from .data_tata import create_tata_dataset
 from .s4 import BatchSeqModel, S4LayerInit, SSMInit
+
+
+# Add Tata netflow dataset
+Datasets['netflow'] = create_tata_dataset
 
 
 # ## Baseline Models
@@ -122,7 +127,7 @@ def train_epoch(state, rng, model, trainloader, classification=False):
     # Store Metrics
     model = model(training=True)
     batch_losses = []
-    for batch_idx, (inputs, labels) in enumerate(tqdm(trainloader)):
+    for batch_idx, (inputs, labels, time_feats, node_ids, time_starts) in enumerate(tqdm(trainloader)):
         inputs = np.array(inputs.numpy())
         labels = np.array(labels.numpy())  # Not the most efficient...
         rng, drop_rng = jax.random.split(rng)
@@ -139,12 +144,17 @@ def train_epoch(state, rng, model, trainloader, classification=False):
     # Return average loss over batches
     return state, np.mean(np.array(batch_losses))
 
+    # testing dataloader
+    # for batch_idx, (inputs, outputs, time_feats, node_ids, time_starts) in enumerate(tqdm(trainloader)):
+    #     ...
+    # return state, 0
+
 
 def validate(params, model, testloader, classification=False):
     # Compute average loss & accuracy
     model = model(training=False)
     losses, accuracies = [], []
-    for batch_idx, (inputs, labels) in enumerate(tqdm(testloader)):
+    for batch_idx, (inputs, labels, time_feats, node_ids, time_starts) in enumerate(tqdm(testloader)):
         inputs = np.array(inputs.numpy())
         labels = np.array(labels.numpy())  # Not the most efficient...
         loss, acc = eval_step(
@@ -156,6 +166,11 @@ def validate(params, model, testloader, classification=False):
     # Sampling autoregressively prompted w/ first 100 "tokens"...
     #   => TODO @Sidd
     return np.mean(np.array(losses)), np.mean(np.array(accuracies))
+
+    # testing dataloader
+    # for batch_idx, (inputs, outputs, time_feats, node_ids, time_starts) in enumerate(tqdm(testloader)):
+    #     ...
+    # return 0, 0
 
 
 # ### Feed-Forward Model
@@ -195,6 +210,7 @@ def train_step(
             )
             loss = np.mean(cross_entropy_loss(logits, batch_labels))
         else:
+            breakpoint()
             logits, mod_vars = model.apply(
                 {"params": params},
                 batch_inputs[:, :-1],
@@ -331,10 +347,14 @@ def example_train(
             classification=classification,
         )
 
+        # breakpoint()
+
         print(f"[*] Running Epoch {epoch + 1} Validation...")
         test_loss, test_acc = validate(
             state.params, model_cls, testloader, classification=classification
         )
+
+        breakpoint()
 
         print(f"\n=>> Epoch {epoch + 1} Metrics ===")
         print(
