@@ -27,7 +27,14 @@ Datasets['netflow'] = create_tata_dataset
 
 
 @partial(np.vectorize, signature="(c),()->()")
+def nll_loss(logits, label):
+    one_hot_label = jax.nn.one_hot(label, num_classes=logits.shape[0])
+    return -np.sum(one_hot_label * logits)
+
+
+@partial(np.vectorize, signature="(c),()->()")
 def cross_entropy_loss(logits, label):
+    logits = nn.log_softmax(logits, axis=-1)
     one_hot_label = jax.nn.one_hot(label, num_classes=logits.shape[0])
     return -np.sum(one_hot_label * logits)
 
@@ -127,6 +134,7 @@ def train_epoch(state, rng, model, trainloader, classification=False):
     # Store Metrics
     model = model(training=True)
     batch_losses = []
+    # bsz = 0
     for batch_idx, (inputs, labels, time_feats, node_ids, time_starts) in enumerate(tqdm(trainloader)):
         inputs = np.array(inputs.numpy())
         labels = np.array(labels.numpy())  # Not the most efficient...
@@ -141,12 +149,28 @@ def train_epoch(state, rng, model, trainloader, classification=False):
         )
         batch_losses.append(loss)
 
+        # debug
+        # if batch_idx >= 10:
+        #     break
+
+        # # debug: check batch sizes for each mini-batch
+        # # print batch size whenever it differs from the last one
+        # if inputs.shape[0] != bsz:
+        #     print(batch_idx, inputs.shape)
+        #     bsz = inputs.shape[0]
+
     # Return average loss over batches
     return state, np.mean(np.array(batch_losses))
 
-    # testing dataloader
+    # # debug: testing dataloader
+    # bsz = 0
     # for batch_idx, (inputs, outputs, time_feats, node_ids, time_starts) in enumerate(tqdm(trainloader)):
+    #     # print batch size whenever it differs from the last one
+    #     if inputs.shape[0] != bsz:
+    #         print(batch_idx, inputs.shape)
+    #         bsz = inputs.shape[0]
     #     ...
+
     # return state, 0
 
 
@@ -154,6 +178,7 @@ def validate(params, model, testloader, classification=False):
     # Compute average loss & accuracy
     model = model(training=False)
     losses, accuracies = [], []
+    # bsz = 0
     for batch_idx, (inputs, labels, time_feats, node_ids, time_starts) in enumerate(tqdm(testloader)):
         inputs = np.array(inputs.numpy())
         labels = np.array(labels.numpy())  # Not the most efficient...
@@ -162,6 +187,12 @@ def validate(params, model, testloader, classification=False):
         )
         losses.append(loss)
         accuracies.append(acc)
+
+        # # debug: check batch sizes for each mini-batch
+        # # print batch size whenever it differs from the last one
+        # if inputs.shape[0] != bsz:
+        #     print(batch_idx, inputs.shape)
+        #     bsz = inputs.shape[0]
 
     # Sampling autoregressively prompted w/ first 100 "tokens"...
     #   => TODO @Sidd
@@ -210,15 +241,15 @@ def train_step(
             )
             loss = np.mean(cross_entropy_loss(logits, batch_labels))
         else:
-            breakpoint()
+            # breakpoint()
             logits, mod_vars = model.apply(
                 {"params": params},
                 batch_inputs[:, :-1],
                 rngs={"dropout": rng},
                 mutable=["intermediates"],
             )
-            breakpoint()
-            loss = np.mean(cross_entropy_loss(logits, batch_inputs[:, 1:, 0]))
+            # breakpoint()
+            loss = np.mean(cross_entropy_loss(logits.reshape(logits.shape[0], logits.shape[1], 6, 10), batch_labels[:, 1:, :]))
         return loss, logits
 
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
@@ -235,8 +266,9 @@ def eval_step(batch_inputs, batch_labels, params, model, classification=False):
         acc = np.mean(compute_accuracy(logits, batch_labels))
     else:
         logits = model.apply({"params": params}, batch_inputs[:, :-1])
-        loss = np.mean(cross_entropy_loss(logits, batch_inputs[:, 1:, 0]))
-        acc = np.mean(compute_accuracy(logits, batch_inputs[:, 1:, 0]))
+        # (bsz, seq_len, 6)
+        loss = np.mean(cross_entropy_loss(logits.reshape(logits.shape[0], logits.shape[1], 6, 10), batch_labels[:, 1:, :]))
+        acc = np.mean(compute_accuracy(logits.reshape(logits.shape[0], logits.shape[1], 6, 10), batch_labels[:, 1:, :]))
     return loss, acc
 
 
@@ -281,6 +313,7 @@ Models = {
 def example_train(
     model,
     dataset,
+    seq_length=512,
     d_model=128,
     bsz=128,
     epochs=10,
@@ -308,7 +341,8 @@ def example_train(
 
     # Create dataset...
     trainloader, testloader, n_classes, seq_len, in_dim = create_dataset_fn(
-        bsz=bsz
+        seq_length=seq_length,
+        bsz=bsz,
     )
     # breakpoint()
     print(f"[*] Starting `{model}` Training on `{dataset}` =>> Initializing...")
@@ -354,7 +388,7 @@ def example_train(
             state.params, model_cls, testloader, classification=classification
         )
 
-        breakpoint()
+        # breakpoint()
 
         print(f"\n=>> Epoch {epoch + 1} Metrics ===")
         print(
@@ -397,6 +431,9 @@ if __name__ == "__main__":
         "--dataset", type=str, choices=Datasets.keys(), required=True
     )
     parser.add_argument(
+        "--seq_length", type=int, default=512, help="sequence length",
+    )
+    parser.add_argument(
         "--model", type=str, choices=Models.keys(), required=True
     )
     parser.add_argument("--epochs", type=int, default=10)
@@ -420,6 +457,7 @@ if __name__ == "__main__":
     example_train(
         args.model,
         args.dataset,
+        seq_length=args.seq_length,
         epochs=args.epochs,
         d_model=args.d_model,
         bsz=args.bsz,

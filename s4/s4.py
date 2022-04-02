@@ -614,11 +614,56 @@ class SeqModel(nn.Module):
         if self.classification:
             x = np.mean(x, axis=0)
         x = self.decoder(x)
-        return nn.log_softmax(x, axis=-1)
+        return x
+        # return nn.log_softmax(x, axis=-1)
 
 
 BatchSeqModel = nn.vmap(
     SeqModel,
+    in_axes=0,
+    out_axes=0,
+    variable_axes={"params": None, "dropout": None},
+    split_rngs={"params": False, "dropout": True},
+)
+
+
+class SeqModelHidden(nn.Module):
+    layer: nn.Module
+    d_output: int
+    d_model: int
+    l_max: int
+    n_layers: int
+    dropout: float = 0.2
+    training: bool = True
+    classification: bool = False
+
+    def setup(self):
+        self.encoder = nn.Dense(self.d_model)
+        self.decoder = nn.Dense(self.d_output)
+        self.layers = [
+            SeqInternal(
+                layer=self.layer,
+                d_model=self.d_model,
+                dropout=self.dropout,
+                training=self.training,
+                l_max=self.l_max,
+            )
+            for _ in range(self.n_layers)
+        ]
+
+    def __call__(self, x):
+        x = self.encoder(x)
+        for layer in self.layers:
+            x = layer(x, None)
+        if self.classification:
+            x = np.mean(x, axis=0)
+        # x = self.decoder(x)
+        return x
+        # return nn.log_softmax(x, axis=-1)
+
+
+BatchSeqModelHidden = nn.vmap(
+    SeqModelHidden,
     in_axes=0,
     out_axes=0,
     variable_axes={"params": None, "dropout": None},

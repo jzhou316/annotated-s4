@@ -111,8 +111,10 @@ env.bak/
 venv.bak/
 
 cenv/
+cenv*
 checkpoints/
 sample.png
+*.tar.gz
 
 # Spyder project settings
 .spyderproject

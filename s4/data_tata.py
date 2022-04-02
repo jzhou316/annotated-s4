@@ -105,11 +105,12 @@ def create_tata_dataset(seq_length=512, bsz=128):
     # valid_data
 
     # create data loader
+    # NOTE in jax, every batch should be of the same size, so we have to drop the last bucket of batch
     trainloader = TwoBucketDataLoader(
         train_data, batch_size=bsz, shuffle=True, drop_last=False, drop_last_bucket=False
     )
     testloader = TwoBucketDataLoader(
-        valid_data, batch_size=bsz, shuffle=False, drop_last=False, drop_last_bucket=False
+        valid_data, batch_size=bsz, shuffle=False, drop_last=False, drop_last_bucket=True
     )
 
     return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
