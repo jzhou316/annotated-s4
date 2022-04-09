@@ -251,6 +251,58 @@ def create_mnist_classification_dataset(bsz=128):
     return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
 
 
+# **Task**: Predict MNIST class given sequence model over pixels transformed to JPEG codes (784 pixels => 10 classes).
+def create_mnist_jpeg_classification_dataset(bsz=128):
+    print("[*] Generating MNIST JPEG Classification Dataset...")
+
+    # Constants
+    SEQ_LENGTH, N_CLASSES, IN_DIM = 728, 10, 1
+
+    """
+    Training images: 60000
+    Testing images: 10000
+        size: (1, 28, 28) grayscale
+
+    When JPEG quality=75, the lengths of the JPEG codes are ([0, 25, 50, 75, 100] percentiles):
+    - train [344, 538, 566, 592, 728]
+    - test [344, 539, 567, 592, 698]
+
+    We pad to the right for all codes to the maximum length.
+    """
+
+    tf = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Lambda(
+                lambda x: (x * 256).byte()
+            ),
+            transforms.Lambda(
+                lambda x: torchvision.io.encode_jpeg(x, quality=75),
+            ),
+            transforms.Lambda(
+                lambda x: torch.nn.functional.pad(x, (0, SEQ_LENGTH - len(x))).view(SEQ_LENGTH, 1),  # pad 0 at the end
+            ),
+        ]
+    )
+
+    train = torchvision.datasets.MNIST(
+        "./data", train=True, download=True, transform=tf
+    )
+    test = torchvision.datasets.MNIST(
+        "./data", train=False, download=True, transform=tf
+    )
+
+    # Return data loaders, with the provided batch size
+    trainloader = torch.utils.data.DataLoader(
+        train, batch_size=bsz, shuffle=True
+    )
+    testloader = torch.utils.data.DataLoader(
+        test, batch_size=bsz, shuffle=False
+    )
+
+    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
+
+
 # ### CIFAR-10 Classification
 # **Task**: Predict CIFAR-10 class given sequence model over pixels (32 x 32 x 3 RGB image => 10 classes).
 def create_cifar_classification_dataset(bsz=128):
@@ -293,4 +345,5 @@ Datasets = {
     "sin_noise": create_sin_ax_b_dataset,
     "mnist-classification": create_mnist_classification_dataset,
     "cifar-classification": create_cifar_classification_dataset,
+    "mnist-jpeg-classification": create_mnist_jpeg_classification_dataset,
 }

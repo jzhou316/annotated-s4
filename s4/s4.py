@@ -657,7 +657,7 @@ class SeqModelHidden(nn.Module):
             x = layer(x, None)
         if self.classification:
             x = np.mean(x, axis=0)
-        # x = self.decoder(x)
+        x = self.decoder(x)    # comment this line to extract hidden states
         return x
         # return nn.log_softmax(x, axis=-1)
 

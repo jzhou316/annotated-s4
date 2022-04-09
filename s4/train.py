@@ -22,7 +22,14 @@ from .s4 import BatchSeqModel, S4LayerInit, SSMInit
 
 
 @partial(np.vectorize, signature="(c),()->()")
+def nll_loss(logits, label):
+    one_hot_label = jax.nn.one_hot(label, num_classes=logits.shape[0])
+    return -np.sum(one_hot_label * logits)
+
+
+@partial(np.vectorize, signature="(c),()->()")
 def cross_entropy_loss(logits, label):
+    logits = nn.log_softmax(logits, axis=-1)
     one_hot_label = jax.nn.one_hot(label, num_classes=logits.shape[0])
     return -np.sum(one_hot_label * logits)
 
@@ -201,7 +208,7 @@ def train_step(
                 rngs={"dropout": rng},
                 mutable=["intermediates"],
             )
-            breakpoint()
+            # breakpoint()
             loss = np.mean(cross_entropy_loss(logits, batch_inputs[:, 1:, 0]))
         return loss, logits
 
@@ -343,7 +350,7 @@ def example_train(
         )
 
         # Save a checkpoint each epoch & handle best (test loss... not "copacetic" but ehh)
-        run_id = f"checkpoints/{dataset}/{model}-d_model={d_model}" + (
+        run_id = f"checkpoints/{dataset}/{model}-d{d_model}-ep{epochs}" + (
             f"-{suffix}" if suffix is not None else ""
         )
         ckpt_path = checkpoints.save_checkpoint(
