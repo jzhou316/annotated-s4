@@ -116,6 +116,9 @@ checkpoints/
 sample.png
 *.tar.gz
 
+# dependency
+jpeg2dct
+
 # Spyder project settings
 .spyderproject
 .spyproject
