@@ -956,12 +956,12 @@ class JPEG:
 
         return self.width, self.height, self.image
 
-    def get_decode_huffman_stream(self):
+    def get_decoded_huffman_stream(self):
         if not self.decoded:
             _ = self.decode()
         return self.huffman_decoded_seq_stream
 
-    def get_decode_huffman_zero_recovered_stream(self):
+    def get_decoded_huffman_zero_recovered_stream(self):
         if not self.decoded:
             _ = self.decode()
         return self.huffman_decoded_seq_zero_recovered_stream
@@ -1024,10 +1024,10 @@ if __name__ == "__main__":
     jpg = JPEG(jpeg_bytes=jpg_bytes, verbose=True, verbose_details=True)
     width, height, image = jpg.decode()
 
-    decode_huffman_stream = jpg.get_decode_huffman_stream()
-    decode_huffman_zero_recovered_stream = jpg.get_decode_huffman_zero_recovered_stream()
-    print(f'length of decoded huffman stream: {len(decode_huffman_stream)}')
-    print(f'length of decoded huffman stream with zeros recovered: {len(decode_huffman_zero_recovered_stream)}')
+    decoded_huffman_stream = jpg.get_decoded_huffman_stream()
+    decoded_huffman_zero_recovered_stream = jpg.get_decoded_huffman_zero_recovered_stream()
+    print(f'length of decoded huffman stream: {len(decoded_huffman_stream)}')
+    print(f'length of decoded huffman stream with zeros recovered: {len(decoded_huffman_zero_recovered_stream)}')
     breakpoint()
 
     # show image
