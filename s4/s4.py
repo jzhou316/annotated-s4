@@ -11,7 +11,8 @@
 # <img src="images/hero.png" width="100%"/>
 
 
-# *Blog Post and [Library](https://github.com/srush/annotated-s4/) by [Sasha Rush](http://rush-nlp.com/) and [Sidd Karamcheti](https://www.siddkaramcheti.com/)*
+# *Blog Post and [Library](https://github.com/srush/annotated-s4/) by [Sasha Rush](http://rush-nlp.com/) and [Sidd Karamcheti](https://www.siddkaramcheti.com/)*, v2
+
 #
 # The [Structured State Space for Sequence
 # Modeling](https://arxiv.org/abs/2111.00396) (S4) architecture is a new approach to very
@@ -23,22 +24,60 @@
 
 # <img src="images/table.png" width="100%"/>
 
-# The paper is also a refreshing departure from Transformers, taking
-# a very different approach to an important problem-space.  However,
-# several of our colleagues have also noted privately (and on
-# [twitter](https://twitter.com/sleepinyourhat/status/1468037897446121483)!)
-# the difficulty of gaining intuition for the model.  This blog post is a first
-# step towards this goal of gaining intuition, linking concrete code implementations
-# with explanations from the S4 paper – very much in the style of [the annotated
+# The paper is also a refreshing departure from Transformers, taking a
+# very different approach to an important problem-space.  However,
+# several of our colleagues have also noted privately the difficulty
+# of gaining intuition for the model.  This blog post is a first step
+# towards this goal of gaining intuition, linking concrete code
+# implementations with explanations from the S4 paper – very much in
+# the style of [the annotated
 # transformer](https://nlp.seas.harvard.edu/2018/04/03/attention.html).
-# Hopefully this combination of code and literate explanations helps you follow the
-# details of the model.
+# Hopefully this combination of code and literate explanations helps
+# you follow the details of the model. By the end of the blog you will
+# have an efficient working version of S4 that can operate as a CNN
+# for training, but then convert to an efficient RNN at test time.  To
+# preview the results, you will be able to generate images from pixels
+# and sounds directly on sound waves on a standard GPU.
+#
+# <center> <img src="images/im0.4.png" width="70%">
+# <img src='images/speech25.0.png' width='80%'>
+# <audio controls>
+#  <source src='images/sample25.0.wav' type='audio/wav'>
+# </audio>
+# <audio controls>
+#  <source src='images/sample25.0.gold.wav' type='audio/wav'>
+# </audio>
+# </center>
 
 # ## Table of Contents
 
-# - Part 1: [State Space Models](#part-1-state-space-models)
-# - Part 2: [Implementing S4](#part-2-implementing-s4)
-# - Part 3: [S4 in Practice](#part-3-s4-in-practice)
+# <nav id="TOC">
+# <ul>
+# <li><a href="#part-1-state-space-models">Part 1: State Space Models</a> (Modeling)<ul>
+# <li><a href="#discrete-time-ssm-the-recurrent-representation">Discrete-time SSM: The Recurrent Representation</a></li>
+# <li><a href="#tangent-a-mechanics-example">Tangent: A Mechanics Example</a></li>
+# <li><a href="#training-ssms-the-convolutional-representation">Training SSMs: The Convolutional Representation</a></li>
+# <li><a href="#addressing-long-range-dependencies-with-hippo">Addressing Long-Range Dependencies with HiPPO</a></li>
+# <li><a href="#an-ssm-neural-network.">An SSM Neural Network.</a></li>
+# </ul></li>
+# <li><a href="#part-2-implementing-s4">Part 2: Implementing S4</a> (Advanced)<ul>
+# <li><a href="#step-1.-ssm-generating-functions">Step 1. SSM Generating Functions</a></li>
+# <li><a href="#step-2-diagonal-case">Step 2: Diagonal Case</a></li>
+# <li><a href="#step-3-diagonal-plus-low-rank">Step 3: Diagonal Plus Low-Rank</a></li>
+# <li><a href="#diagonal-plus-low-rank-rnn.">Diagonal Plus Low-Rank RNN.</a></li>
+# <li><a href="#turning-hippo-to-dplr">Turning HiPPO to DPLR</a></li>
+# <li><a href="#final-check">Final Check</a></li>
+# </ul></li>
+# <li><a href="#part-3-s4-in-practice">Part 3: S4 in Practice (NN Implementation)</a><ul>
+# <li><a href="#s4-cnn-rnn-layer">S4 CNN / RNN Layer</a></li>
+# <li><a href="#sampling-and-caching">Sampling and Caching</a></li>
+# <li><a href="#experiments-mnist">Experiments: MNIST</a></li>
+# <li><a href="#experiments-quickdraw">Experiments: QuickDraw</a></li>
+# <li><a href="#experiments-spoken-digits">Experiments: Spoken Digits</a></li>
+# </ul></li>
+# <li><a href="#conclusion">Conclusion</a></li>
+# </ul>
+# </nav>
 
 # Note that this project uses [JAX](https://github.com/google/jax/)
 # with the [Flax](https://github.com/google/flax) NN library.  While
@@ -56,7 +95,7 @@ from functools import partial
 import jax
 import jax.numpy as np
 from flax import linen as nn
-from jax.nn.initializers import lecun_normal
+from jax.nn.initializers import lecun_normal, uniform
 from jax.numpy.linalg import eig, inv, matrix_power
 from jax.scipy.signal import convolve
 
@@ -157,7 +196,7 @@ def scan_SSM(Ab, Bb, Cb, u, x0):
         y_k = Cb @ x_k
         return x_k, y_k
 
-    return jax.lax.scan(step, x0, u)[1]
+    return jax.lax.scan(step, x0, u)
 
 
 # Putting everything together, we can run the SSM
@@ -170,7 +209,7 @@ def run_SSM(A, B, C, u):
     Ab, Bb, Cb = discretize(A, B, C, step=1.0 / L)
 
     # Run recurrence
-    return scan_SSM(Ab, Bb, Cb, u[:, np.newaxis], np.zeros((N,)))
+    return scan_SSM(Ab, Bb, Cb, u[:, np.newaxis], np.zeros((N,)))[1]
 
 
 # ### Tangent: A Mechanics Example
@@ -266,7 +305,8 @@ def example_ssm():
     anim.save("line.gif", dpi=150, writer="imagemagick")
 
 
-example_ssm()
+if False:
+    example_ssm()
 
 # <img src="line.gif" width="100%">
 
@@ -332,8 +372,8 @@ def K_conv(Ab, Bb, Cb, L):
 
 
 # We can compute the result of applying this filter either with a standard direct convolution or
-# with a padded (non-circular) [Fast Fourier Transform (FFT)](https://en.wikipedia.org/wiki/Convolution_theorem).
-# As the length gets longer the second method will be more efficient,
+# by using convolution theorem with [Fast Fourier Transform (FFT)](https://en.wikipedia.org/wiki/Convolution_theorem). The discrete convolution theorem - for circular convolution of two sequences - allows us to efficiently calculate the output of convolution by first multiplying FFTs of the input sequences and then applying an inverse FFT. To utilize this theorem for non-circular convolutions as in our case, we need to pad the input sequences with zeros, and then unpad the output sequence.
+# As the length gets longer this FFT method will be more efficient than the direct convolution,
 
 
 def non_circular_convolution(u, K, nofft=False):
@@ -353,16 +393,16 @@ def non_circular_convolution(u, K, nofft=False):
 def test_cnn_is_rnn(N=4, L=16, step=1.0 / 16):
     ssm = random_SSM(rng, N)
     u = jax.random.uniform(rng, (L,))
-
-    # "RNN"
+    jax.random.split(rng, 3)
+    # RNN
     rec = run_SSM(*ssm, u)
 
-    # "CNN"
+    # CNN
     ssmb = discretize(*ssm, step=step)
     conv = non_circular_convolution(u, K_conv(*ssmb, L))
 
     # Check
-    assert np.isclose(rec.ravel(), conv.ravel(), rtol=1e-2, atol=1e-4).all()
+    assert np.allclose(rec.ravel(), conv.ravel())
 
 
 # At this point we have all of the machinery used for SSM training. The next
@@ -418,7 +458,7 @@ def make_HiPPO(N):
 
     # Do it slow so we don't mess it up :)
     mat = [[v(n, k) for k in range(1, N + 1)] for n in range(1, N + 1)]
-    return np.array(mat)
+    return -np.array(mat)
 
 
 # Diving a bit deeper, the intuitive explanation of this matrix is
@@ -476,6 +516,9 @@ def example_legendre(N=8):
     fig.savefig("images/leg.png")
 
 
+if False:
+    example_legendre()
+
 # The red line represents that curve we are approximating,
 # while the black bars represent the values of our hidden state.
 # Each is a coefficient for one element of the Legendre series
@@ -509,12 +552,17 @@ def log_step_initializer(dt_min=0.001, dt_max=0.1):
 # Note for Torch users: `setup` in Flax is called each time the parameters are updated.
 # This is similar to the
 # [Torch parameterizations](https://pytorch.org/tutorials/intermediate/parametrizations.html).
+#
+# As noted above this same layer can be used either as an RNN or a CNN. The argument
+# `decode` determines which path is used. In the case of RNN we cache the previous state
+# at each call in a Flax variable collection called `cache`.
 
 
 class SSMLayer(nn.Module):
     A: np.DeviceArray  # HiPPO
     N: int
     l_max: int
+    decode: bool = False
 
     def setup(self):
         # SSM parameters
@@ -526,11 +574,22 @@ class SSMLayer(nn.Module):
         self.log_step = self.param("log_step", log_step_initializer(), (1,))
 
         step = np.exp(self.log_step)
-        ssm = discretize(self.A, self.B, self.C, step=step)
-        self.K = K_conv(*ssm, self.l_max)
+        self.ssm = discretize(self.A, self.B, self.C, step=step)
+        self.K = K_conv(*self.ssm, self.l_max)
+
+        # RNN cache for long sequences
+        self.x_k_1 = self.variable("cache", "cache_x_k", np.zeros, (self.N,))
 
     def __call__(self, u):
-        return non_circular_convolution(u, self.K) + self.D * u
+        if not self.decode:
+            # CNN Mode
+            return non_circular_convolution(u, self.K) + self.D * u
+        else:
+            # RNN Mode
+            x_k, y_s = scan_SSM(*self.ssm, u[:, np.newaxis], self.x_k_1.value)
+            if self.is_mutable_collection("cache"):
+                self.x_k_1.value = x_k
+            return y_s.reshape(-1).real + self.D * u
 
 
 # Since our SSMs operate on scalars, we make $H$ different, stacked copies ($H$ different SSMs!) with
@@ -544,7 +603,7 @@ def cloneLayer(layer):
         layer,
         in_axes=1,
         out_axes=1,
-        variable_axes={"params": 1},
+        variable_axes={"params": 1, "cache": 1, "prime": 1},
         split_rngs={"params": True},
     )
 
@@ -556,19 +615,21 @@ def SSMInit(N):
     return partial(cloneLayer(SSMLayer), A=make_HiPPO(N), N=N)
 
 
-# This SSM Layer can then be put into a standard NN. For instance, here
-# we have a Transformer-style stack of residual blocks, each containing the $H$ stacked SSMs.
+# This SSM Layer can then be put into a standard NN.
+# Here we add a block that pairs a call to an SSM with
+# dropout and a linear projection.
 
 
-class SeqInternal(nn.Module):
+class SequenceBlock(nn.Module):
     layer: nn.Module
     l_max: int
     dropout: float
     d_model: int
     training: bool = True
+    decode: bool = False
 
     def setup(self):
-        self.seq = self.layer(l_max=self.l_max)
+        self.seq = self.layer(l_max=self.l_max, decode=self.decode)
         self.norm = nn.LayerNorm()
         self.out = nn.Dense(self.d_model)
         self.drop = nn.Dropout(
@@ -577,13 +638,18 @@ class SeqInternal(nn.Module):
             deterministic=not self.training,
         )
 
-    def __call__(self, x, blank):
+    def __call__(self, x):
         x2 = self.seq(x)
         z = self.drop(self.out(self.drop(nn.gelu(x2))))
         return self.norm(z + x)
 
 
-class SeqModel(nn.Module):
+# We can then stack a bunch of these blocks on top of each other
+# to produce a stack of SSM layers. This can be used for
+# classification or generation in the standard way as a Transformer.
+
+
+class StackedModel(nn.Module):
     layer: nn.Module
     d_output: int
     d_model: int
@@ -592,17 +658,19 @@ class SeqModel(nn.Module):
     dropout: float = 0.2
     training: bool = True
     classification: bool = False
+    decode: bool = False
 
     def setup(self):
         self.encoder = nn.Dense(self.d_model)
         self.decoder = nn.Dense(self.d_output)
         self.layers = [
-            SeqInternal(
+            SequenceBlock(
                 layer=self.layer,
                 d_model=self.d_model,
                 dropout=self.dropout,
                 training=self.training,
                 l_max=self.l_max,
+                decode=self.decode,
             )
             for _ in range(self.n_layers)
         ]
@@ -610,7 +678,7 @@ class SeqModel(nn.Module):
     def __call__(self, x):
         x = self.encoder(x)
         for layer in self.layers:
-            x = layer(x, None)
+            x = layer(x)
         if self.classification:
             x = np.mean(x, axis=0)
         x = self.decoder(x)
@@ -618,11 +686,16 @@ class SeqModel(nn.Module):
         # return nn.log_softmax(x, axis=-1)
 
 
-BatchSeqModel = nn.vmap(
-    SeqModel,
+# In Flax we add the batch dimension as a lifted transformation.
+# We need to route through several variable collections which
+# handle RNN and parameter caching (described below).
+
+
+BatchStackedModel = nn.vmap(
+    StackedModel,
     in_axes=0,
     out_axes=0,
-    variable_axes={"params": None, "dropout": None},
+    variable_axes={"params": None, "dropout": None, "cache": 0, "prime": None},
     split_rngs={"params": False, "dropout": True},
 )
 
@@ -699,12 +772,12 @@ BatchSeqModelHidden = nn.vmap(
 
 # Specifically, recall this function here:
 
-
-def K_conv_(Ab, Bb, Cb, L):
-    return np.array(
-        [(Cb @ matrix_power(Ab, l) @ Bb).reshape() for l in range(L)]
-    )
-
+# ```python
+# def K_conv(Ab, Bb, Cb, L):
+#    return np.array(
+#        [(Cb @ matrix_power(Ab, l) @ Bb).reshape() for l in range(L)]
+#    )
+# ```
 
 # The contribution of S4 is a stable method for speeding up this particular operation.
 # To do this we are going to focus on the case where the SSM
@@ -748,22 +821,20 @@ def K_gen_simple(Ab, Bb, Cb, L):
 
 
 # > The generating function essentially converts the SSM convolution filter from the time domain to
-# > frequency domain. Importantly, it preserves the same information, and the desired SSM convolution filter
-# > can be recovered from evaluations of its
-# > [generating function at the roots of unity](https://math.stackexchange.com/questions/3213142/root-of-unity-filter )
-# $\Omega = \{ \exp(2\pi \frac{k}{L} : k \in [L] \}$ stably in $O(L \log L)$ operations by applying an
-# [FFT](https://en.wikipedia.org/wiki/Fast_Fourier_transform),
+# > frequency domain. This transformation is also called [z-transform](https://en.wikipedia.org/wiki/Z-transform) (up to a minus sign) in control engineering literature. Importantly, it preserves the same information, and the desired SSM convolution filter
+# > can be recovered. Once the z-transform of a discrete sequence known, we can obtain the filter's discrete fourier transform from evaluations of its
+# > [z-transform at the roots of unity](https://en.wikipedia.org/wiki/Z-transform#Inverse_Z-transform)
+# $\Omega = \{ \exp(2\pi \frac{k}{L} : k \in [L] \}$. Then, we can apply inverse fourier transformation, stably in $O(L \log L)$ operations by applying an [FFT](https://en.wikipedia.org/wiki/Fast_Fourier_transform), to recover the filter.
 
 
 def conv_from_gen(gen, L):
     # Evaluate at roots of unity
-    Omega_L = np.exp((2j * np.pi / L) * np.arange(L))
+    # Generating function is (-)z-transform, so we evaluate at (-)root
+    Omega_L = np.exp((-2j * np.pi) * (np.arange(L) / L))
     atRoots = jax.vmap(gen)(Omega_L)
     # Inverse FFT
     out = np.fft.ifft(atRoots, L).reshape(L)
-    # Numpy returns the values out of order.
-    order = np.array([i if i == 0 else L - i for i in range(L)])
-    return out[order].real
+    return out.real
 
 
 # More importantly, in the generating function we can replace the matrix power with an inverse!
@@ -779,7 +850,7 @@ def K_gen_inverse(Ab, Bb, Cb, L):
     I = np.eye(Ab.shape[0])
     Ab_L = matrix_power(Ab, L)
     Ct = Cb @ (I - Ab_L)
-    return lambda z: (Ct @ inv(I - Ab * z) @ Bb).reshape()
+    return lambda z: (Ct.conj() @ inv(I - Ab * z) @ Bb).reshape()
 
 
 # But it does output the same values,
@@ -787,10 +858,11 @@ def K_gen_inverse(Ab, Bb, Cb, L):
 
 def test_gen_inverse(L=16, N=4):
     ssm = random_SSM(rng, N)
+    ssm = discretize(*ssm, 1.0 / L)
     b = K_conv(*ssm, L=L)
 
     a = conv_from_gen(K_gen_inverse(*ssm, L=L), L)
-    assert np.isclose(a, b, rtol=1e-2, atol=1e-4).all()
+    assert np.allclose(a, b)
 
 
 #  In summary, Step 1 allows us to replace the matrix power with an
@@ -823,7 +895,7 @@ def test_gen_inverse(L=16, N=4):
 # where $c$ is a constant, and $g$ is a function of $z$.
 
 
-# We have effectively replaced an  inverse with a weighted dot product.
+# We have effectively replaced an inverse with a weighted dot product.
 # Let's make a small helper function to compute this weight dot product for use.
 # Here [vectorize](https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.vectorize.html)
 # is a decorator that let's us broadcast this function automatically,
@@ -834,10 +906,11 @@ def cauchy_dot(v, omega, lambd):
     return (v / (omega - lambd)).sum()
 
 
-# While not important for our implementation, it is worth noting
-# that this is a [Cauchy kernel](https://en.wikipedia.org/wiki/Cauchy_matrix)
-# and is the subject of many [fast implementations](https://en.wikipedia.org/wiki/Fast_multipole_method).
-# On a GPU though, it is efficient enough just to compute it directly.
+# While not important for our implementation, it is worth noting that
+# this is a [Cauchy
+# kernel](https://en.wikipedia.org/wiki/Cauchy_matrix) and is the
+# subject of many other [fast
+# implementations](https://en.wikipedia.org/wiki/Fast_multipole_method).
 
 
 # ### Step 3: Diagonal Plus Low-Rank
@@ -871,7 +944,7 @@ def cauchy_dot(v, omega, lambd):
 # The code consists of collecting up the terms and applying 4 weighted dot products,
 
 
-def K_gen_DPLR(Lambda, p, q, B, Ct, step):
+def K_gen_DPLR(Lambda, p, q, B, Ct, step, unmat=False):
     aterm = (Ct.conj().ravel(), q.conj().ravel())
     bterm = (B.ravel(), p.ravel())
 
@@ -880,7 +953,11 @@ def K_gen_DPLR(Lambda, p, q, B, Ct, step):
         c = 2.0 / (1.0 + o)
 
         def k(a):
-            return cauchy_dot(a, g, Lambda)
+            # Checkpoint this calculation for memory efficiency.
+            if unmat:
+                return jax.remat(cauchy_dot)(a, g, Lambda)
+            else:
+                return cauchy_dot(a, g, Lambda)
 
         k00 = k(aterm[0] * bterm[0])
         k01 = k(aterm[0] * bterm[1])
@@ -912,15 +989,102 @@ def test_gen_dplr(L=16, N=4):
     I = np.eye(4)
 
     # Create a DPLR A matrix and discretize
-    Lambda, p, q, B, C = random_DPLR(rng, N)
-    A = np.diag(Lambda) - p[:, np.newaxis] * q[np.newaxis, :]
+    _, _, _, B, _ = random_DPLR(rng, N)
+    _, Lambda, p, q, V = make_NPLR_HiPPO(N)
+    Vc = V.conj().T
+    p = Vc @ p
+    q = Vc @ q.conj()
+    A = np.diag(Lambda) - p[:, np.newaxis] @ q[:, np.newaxis].conj().T
+    B = Vc @ np.sqrt(1.0 + 2 * np.arange(N)).reshape(N, 1)
+    _, _, C = random_SSM(rng, N)
+
     Ab, Bb, Cb = discretize(A, B, C, 1.0 / L)
-    a = K_conv(Ab, Bb, Cb, L=L)
+    a = K_conv(Ab, Bb, Cb.conj(), L=L)
 
     # Compare to the DPLR generating function approach.
     Ct = (I - matrix_power(Ab, L)).conj().T @ Cb.ravel()
     b = conv_from_gen(K_gen_DPLR(Lambda, p, q, B, Ct, step=1.0 / L), L)
-    assert np.isclose(a, b, rtol=1e-2, atol=1e-4).all()
+    assert np.allclose(a.real, b.real)
+
+
+# ### Diagonal Plus Low-Rank RNN.
+
+# A secondary benefit of the DPLR factorization is that it allows
+# us to compute the discretized form of the SSM without having
+# to invert the $A$ matrix directly. Here we return to the paper
+# for the derivation.
+
+# > Recall that discretization computes,
+# $$
+# \begin{align*}
+#   \bm{\overline{A}} &= (\bm{I} - \Delta/2 \cdot \bm{A})^{-1}(\bm{I} + \Delta/2 \cdot \bm{A}) \\
+#   \bm{\overline{B}} &= (\bm{I} - \Delta/2 \cdot \bm{A})^{-1} \Delta \bm{B}
+#   .
+# \end{align*}
+# $$
+# >
+# > We simplify both terms in the definition of $\bm{\overline{A}}$ independently.
+# > The first term is:
+# $$
+# \begin{align*}
+#   \bm{I} + \frac{\Delta}{2} \bm{A}
+#   &= \bm{I} + \frac{\Delta}{2} (\bm{\Lambda} - \bm{p} \bm{q}^*)
+#   \\&= \frac{\Delta}{2} \left[ \frac{2}{\Delta}\bm{I} + (\bm{\Lambda} - \bm{p} \bm{q}^*) \right]
+#   \\&= \frac{\Delta}{2} \bm{A_0}
+# \end{align*}
+# $$
+# > where $\bm{A_0}$ is defined as the term in the final brackets.
+# >
+# > The second term is known as the Backward Euler's method.
+# > Although this inverse term is normally difficult to deal with,
+# > in the DPLR case we can simplify it using Woodbury's Identity as described above.
+# $$
+# \begin{align*}
+#   \left( \bm{I} - \frac{\Delta}{2} \bm{A} \right)^{-1}
+#   &=
+#   \left( \bm{I} - \frac{\Delta}{2} (\bm{\Lambda} - \bm{p} \bm{q}^*) \right)^{-1}
+#   \\&=
+#   \frac{2}{\Delta} \left[ \frac{2}{\Delta} - \bm{\Lambda} + \bm{p} \bm{q}^* \right]^{-1}
+#   \\&=
+#   \frac{2}{\Delta} \left[ \bm{D} - \bm{D} \bm{p} \left( 1 + \bm{q}^* \bm{D} \bm{p} \right)^{-1} \bm{q}^* \bm{D} \right]
+#   \\&= \frac{2}{\Delta} \bm{A_1}
+# \end{align*}
+# $$
+# > where $\bm{D} = \left( \frac{2}{\Delta}-\bm{\Lambda} \right)^{-1}$
+# > and $\bm{A_1}$ is defined as the term in the final brackets.
+# >
+# >  The discrete-time SSM \eqref{eq:2} becomes
+# $$
+# \begin{align*}
+#   x_{k} &= \bm{\overline{A}} x_{k-1} + \bm{\overline{B}} u_k \\
+#   &= \bm{A_1} \bm{A_0} x_{k-1} + 2 \bm{A_1} \bm{B} u_k \\
+#   y_k &= \bm{C} x_k
+#   .
+# \end{align*}
+# $$
+
+
+def discrete_DPLR(Lambda, p, q, B, Ct, step, L):
+    N = Lambda.shape[0]
+    A = np.diag(Lambda) - p[:, np.newaxis] @ q[:, np.newaxis].conj().T
+    I = np.eye(N)
+
+    # Forward Euler
+    A0 = (2.0 / step) * I + A
+
+    # Backward Euler
+    D = np.diag(1.0 / ((2.0 / step) - Lambda))
+    qc = q.conj().T.reshape(1, -1)
+    p2 = p.reshape(-1, 1)
+    A1 = D - (D @ p2 * (1.0 / (1 + (qc @ D @ p2))) * qc @ D)
+
+    # A bar and B bar
+    Ab = A1 @ A0
+    Bb = 2 * A1 @ B
+
+    # Recover Cbar from Ct
+    Cb = Ct @ inv(I - matrix_power(Ab, L)).conj()
+    return Ab, Bb, Cb.conj()
 
 
 # ### Turning HiPPO to DPLR
@@ -945,7 +1109,7 @@ def test_gen_dplr(L=16, N=4):
 
 def make_NPLR_HiPPO(N):
     # Make -HiPPO
-    nhippo = -make_HiPPO(N)
+    nhippo = make_HiPPO(N)
 
     # Add in a rank 1 term. Makes it Normal.
     p = 0.5 * np.sqrt(2 * np.arange(1, N + 1) + 1.0)
@@ -954,10 +1118,11 @@ def make_NPLR_HiPPO(N):
 
     # Diagonalize to S to V \Lambda V^*
     Lambda, V = jax.jit(eig, backend="cpu")(S)
+    # Lambda, V = eig(jax.device_put(S, device=jax.devices("cpu")[0]))
     return nhippo, Lambda, p, q, V
 
 
-# Final sanity check just to make sure those identities hold,
+# Sanity check just to make sure those identities hold,
 
 
 def test_nplr(N=8):
@@ -967,8 +1132,45 @@ def test_nplr(N=8):
     Vc = V.conj().T
     A3 = V @ (Lambda - (Vc @ p) @ (Vc @ q.conj()).conj().T) @ Vc
     A4 = V @ Lambda @ Vc - (p @ q.T)
-    assert np.allclose(A2, A3, atol=1e-2, rtol=1e-2)
-    assert np.allclose(A2, A4, atol=1e-2, rtol=1e-2)
+    assert np.allclose(A2, A3, atol=1e-4, rtol=1e-4)
+    assert np.allclose(A2, A4, atol=1e-4, rtol=1e-4)
+
+
+# ### Final Check
+
+# This tests that everything works as planned.
+
+
+def test_conversion(N=8, L=16):
+    step = 1.0 / L
+    # Compute a HiPPO NPLR matrix.
+    _, Lambda, p, q, V = make_NPLR_HiPPO(N)
+    Vc = V.conj().T
+    p = Vc @ p
+    q = Vc @ q.conj()
+    B = lecun_normal(dtype=np.complex64)(rng, (N, 1))
+    B = Vc @ B
+    # Random complex Ct
+    Ct = lecun_normal(dtype=np.complex64)(rng, (1, N))
+
+    # CNN form.
+    K_gen = K_gen_DPLR(Lambda, p, q, B, Ct, step)
+    K = conv_from_gen(K_gen, L)
+
+    # RNN form.
+    Ab, Bb, Cb = discrete_DPLR(Lambda, p, q, B, Ct, step, L)
+    K2 = K_conv(Ab, Bb, Cb, L=L)
+    assert np.allclose(K.real, K2.real, atol=1e-5, rtol=1e-5)
+
+    # Apply CNN
+    u = np.arange(L) * 1.0
+    y1 = non_circular_convolution(u, K.real)
+
+    # Apply RNN
+    _, y2 = scan_SSM(
+        Ab, Bb, Cb, u[:, np.newaxis], np.zeros((N,)).astype(np.complex64)
+    )
+    assert np.allclose(y1, y2.reshape(-1).real, atol=1e-4, rtol=1e-4)
 
 
 # ## Part 3: S4 in Practice
@@ -976,11 +1178,14 @@ def test_nplr(N=8):
 # That was a lot of work, but now the actual model is concise. In fact
 # we are only using four functions:
 
-# 1. `discretize` → Convert SSM to discrete form.
-# 2. `K_gen_DPLR` → Truncated generating function when $\boldsymbol{A}$ is DPLR (S4-part)
-# 3. `conv_from_gen` → Convert generating function to filter
-# 4. `non_circular_convolution` → Run convolution
 
+# 1. `K_gen_DPLR` → Truncated generating function when $\boldsymbol{A}$ is DPLR (S4-part)
+# 2. `conv_from_gen` → Convert generating function to filter
+# 3. `non_circular_convolution` → Run convolution
+# 4. `discretize_DPLR` → Convert SSM to discrete form for RNN.
+
+
+# ### S4 CNN / RNN Layer
 
 #  A full S4 Layer is very similar to the simple SSM layer above. The
 #  only difference is in the the computation of $\boldsymbol{K}$.
@@ -992,34 +1197,76 @@ def test_nplr(N=8):
 
 class S4Layer(nn.Module):
     A: np.DeviceArray
+    Vc: np.DeviceArray
     p: np.DeviceArray
     q: np.DeviceArray
     Lambda: np.DeviceArray
-
     N: int
     l_max: int
+    decode: bool = False
 
     def setup(self):
-        self.B = self.param("B", lecun_normal(), (self.N, 1))
-        self.D = self.param("D", nn.initializers.ones, (1,))
-        self.Ct = self.param(
-            "Ct", lecun_normal(dtype=jax.numpy.complex64), (1, self.N)
-        )
-        self.log_step = self.param("log_step", log_step_initializer(), (1,))
-        step = np.exp(self.log_step)
+        # Learned Parameters (Ct is complex!)
+        self.Ct = self.param("Ct", lecun_normal(), (1, self.N, 2))
+        self.Ct = self.Ct[..., 0] + 1j * self.Ct[..., 1]
+        self.B = self.Vc @ self.param("B", lecun_normal(), (self.N, 1))
+        self.D = self.param("D", uniform(), (1,))
+        self.step = np.exp(self.param("log_step", log_step_initializer(), (1,)))
 
-        K_gen = K_gen_DPLR(
-            self.Lambda, self.p, self.q, self.B, self.Ct, step[0]
-        )
-        self.K = conv_from_gen(K_gen, self.l_max)
+        if not self.decode:
+            # CNN mode, compute kernel.
+            K_gen = K_gen_DPLR(
+                self.Lambda,
+                self.p,
+                self.q,
+                self.B,
+                self.Ct,
+                self.step[0],
+                unmat=self.l_max > 1000,
+            )
+            self.K = conv_from_gen(K_gen, self.l_max)
+
+        else:
+            # RNN mode, discretize
+
+            # Flax trick to cache discrete form during decoding.
+            def init_discrete():
+                return discrete_DPLR(
+                    self.Lambda,
+                    self.p,
+                    self.q,
+                    self.B,
+                    self.Ct,
+                    self.step[0],
+                    self.l_max,
+                )
+
+            ssm_var = self.variable("prime", "ssm", init_discrete)
+            if self.is_mutable_collection("prime"):
+                ssm_var.value = init_discrete()
+            self.ssm = ssm_var.value
+
+            # RNN Cache
+            self.x_k_1 = self.variable(
+                "cache", "cache_x_k", np.zeros, (self.N,), np.complex64
+            )
 
     def __call__(self, u):
-        return non_circular_convolution(u, self.K) + self.D * u
+        # This is identical to SSM Layer
+        if not self.decode:
+            # CNN Mode
+            return non_circular_convolution(u, self.K) + self.D * u
+        else:
+            # RNN Mode
+            x_k, y_s = scan_SSM(*self.ssm, u[:, np.newaxis], self.x_k_1.value)
+            if self.is_mutable_collection("cache"):
+                self.x_k_1.value = x_k
+            return y_s.reshape(-1).real + self.D * u
 
 
 S4Layer = cloneLayer(S4Layer)
 
-# We initialize the model by computing a DPLR initializer similar to HiPPO,
+# We initialize the model by computing a HiPPO DPLR initializer
 
 
 def S4LayerInit(N):
@@ -1028,10 +1275,72 @@ def S4LayerInit(N):
     p = Vc @ p
     q = Vc @ q.conj()
     A = np.diag(Lambda) - p[:, np.newaxis] @ q[:, np.newaxis].conj().T
-    return partial(S4Layer, N=N, A=A, p=p, q=q, Lambda=Lambda)
+    return partial(S4Layer, N=N, A=A, Lambda=Lambda, p=p, q=q, Vc=Vc)
 
 
-# ### Experiments
+# ### Sampling and Caching
+
+# We can sample from the model using the RNN implementation. Here is
+# what the sampling code looks like. Note that we keep a running cache
+# to remember the RNN state.
+
+
+def sample(model, params, prime, cache, x, start, end, rng):
+    def loop(i, cur):
+        x, rng, cache = cur
+        r, rng = jax.random.split(rng)
+        out, vars = model.apply(
+            {"params": params, "prime": prime, "cache": cache},
+            x[:, np.arange(1, 2) * i],
+            mutable=["cache"],
+        )
+
+        def update(x, out):
+            p = jax.random.categorical(r, out[0])
+            x = x.at[i + 1, 0].set(p)
+            return x
+
+        x = jax.vmap(update)(x, out)
+        return x, rng, vars["cache"].unfreeze()
+
+    return jax.lax.fori_loop(start, end, jax.jit(loop), (x, rng, cache))[0]
+
+
+# To get this in a good form, we first precompute the discretized
+# version of the the RNN for each S4 layers. We do this through the
+# "prime" collection of variables.
+
+
+def init_from_checkpoint(model, checkpoint, init_x):
+    from flax.training import checkpoints
+
+    print("[*] Loading")
+    state = checkpoints.restore_checkpoint(checkpoint, None)
+    assert "params" in state
+    print("[*] Initializing")
+    variables = model.init(rng, init_x)
+    vars = {
+        "params": state["params"],
+        "cache": variables["cache"].unfreeze(),
+        "prime": variables["prime"].unfreeze(),
+    }
+    print("[*] Priming")
+    _, prime_vars = model.apply(vars, init_x, mutable=["prime"])
+    return vars["params"], prime_vars["prime"], vars["cache"]
+
+
+# Putting this altogether we can sample from a model directly.
+
+
+def sample_checkpoint(path, model, length):
+    start = np.zeros((1, length, 1))
+    print("[*] Initializing from checkpoint %s" % path)
+    params, prime, cache = init_from_checkpoint(model, path, start[:, :-1])
+    print("[*] Sampling output")
+    return sample(model, params, prime, cache, start, 0, length - 1, rng)
+
+
+# ### Experiments: MNIST
 
 # Now that we have the model, we can try it out on some MNIST experiments.
 # For these experiments we linearize MNIST and just treat each image as a sequence of
@@ -1052,56 +1361,77 @@ def S4LayerInit(N):
 # dimension](https://paperswithcode.com/sota/image-generation-on-mnist)* which is
 # NLL in base 2 for MNIST. A score of 0.52 is ~0.76 BPD which is near PixelCNN++.
 
-# We can sample from the model using the CNN implementation. Ideally we would use the
-# RNN form, but that would require a bit more plumbing,
-
-
-def sample_mnist():
-    import matplotlib.pyplot as plt
-    from flax.training import checkpoints
-
-    model = S4LayerInit(N=64)
-    model = partial(
-        BatchSeqModel,
-        layer=model,
-        d_output=256,
-        d_model=256,
-        n_layers=6,
-        l_max=783,
-    )
-    rng = jax.random.PRNGKey(0)
-    state = checkpoints.restore_checkpoint("models/best_84", None)
-    model = model(training=False)
-    start = np.zeros((1, 784, 1))
-
-    def loop(i, cur):
-        cur, rng = cur
-        r, rng = jax.random.split(rng)
-        out = model.apply({"params": state["params"]}, cur[:, :-1])
-        p = jax.random.categorical(rng, out[0, i])
-        cur = jax.ops.index_update(cur, (0, i + 1, 0), p)
-        return cur, rng
-
-    out = jax.lax.fori_loop(0, 783, jax.jit(loop), (start, rng))[0]
-    plt.imshow(out.reshape(28, 28))
-    plt.savefig("sample.png")
-
-
-sample_mnist()
 
 # <img src="images/sample.png" width="100%">
 
 # We can also do prefix-samples – given the first 300 pixels, try to complete the image.
 # S4 is on the left, true on the right.
 
-# <img src="images/im12.png" width="45%">
-# <img src="images/im13.png" width="45%">
-# <img src="images/im14.png" width="45%">
-# <img src="images/im15.png" width="45%">
-# <img src="images/im16.png" width="45%">
-# <img src="images/im17.png" width="45%">
-# <img src="images/im18.png" width="45%">
-# <img src="images/im19.png" width="45%">
+# <img src="images/im0.1.png" width="45%">
+# <img src="images/im0.2.png" width="45%">
+# <img src="images/im0.3.png" width="45%">
+# <img src="images/im0.4.png" width="45%">
+# <img src="images/im0.5.png" width="45%">
+# <img src="images/im0.6.png" width="45%">
+# <img src="images/im0.7.png" width="45%">
+# <img src="images/im0.8.png" width="45%">
+
+
+def sample_mnist_prefix(path, model, length):
+    import matplotlib.pyplot as plt
+    import numpy as onp
+    from .data import Datasets
+
+    BATCH = 32
+    START = 300
+    start = np.zeros((BATCH, length, 1))
+    params, prime, init_cache = init_from_checkpoint(model, path, start[:, :-1])
+
+    _, testloader, _, _, _ = Datasets["mnist"](bsz=BATCH)
+    it = iter(testloader)
+    for j, im in enumerate(it):
+        image = im[0].numpy()
+
+        cur = onp.array(image)
+        cur[:, START + 1 :, 0] = 0
+        cur = np.array(cur)
+
+        # Cache the first `start` inputs.
+        out, vars = model.apply(
+            {"params": params, "prime": prime, "cache": init_cache},
+            cur[:, np.arange(0, START)],
+            mutable=["cache"],
+        )
+        cache = vars["cache"].unfreeze()
+        out = sample(model, params, prime, cache, cur, START, length - 1, rng)
+        print(j)
+
+        # Visualization
+        out = out.reshape(BATCH, 28, 28)
+        final = onp.zeros((BATCH, 28, 28, 3))
+        final2 = onp.zeros((BATCH, 28, 28, 3))
+        final[:, :, :, 0] = out
+        f = final.reshape(BATCH, 28 * 28, 3)
+        i = image.reshape(BATCH, 28 * 28)
+        f[:, :START, 1] = i[:, :START]
+        f[:, :START, 2] = i[:, :START]
+        f = final2.reshape(BATCH, 28 * 28, 3)
+        f[:, :, 1] = i
+        f[:, :START, 0] = i[:, :START]
+        f[:, :START, 2] = i[:, :START]
+        for k in range(BATCH):
+            fig, (ax1, ax2) = plt.subplots(ncols=2)
+            ax1.set_title("Sampled")
+            ax1.imshow(final[k] / 256.0)
+            ax2.set_title("True")
+            ax1.axis("off")
+            ax2.axis("off")
+            ax2.imshow(final2[k] / 256.0)
+            fig.savefig("im%d.%d.png" % (j, k))
+            print(j)
+
+
+# ### Experiments: QuickDraw
 
 
 # Next we tried training a model to generate drawings. For this we
@@ -1121,6 +1451,103 @@ sample_mnist()
 # <img src="images/quickdraw/im5.png" width="45%">
 # <img src="images/quickdraw/im6.png" width="45%">
 
+
+# ### Experiments: Spoken Digits
+
+# Finally we played with modeling sound waves directly. For these, we
+# use the
+# [Free Spoken Digits Datasets](https://github.com/Jakobovski/free-spoken-digit-dataset)
+# an MNIST like dataset of various speakers reading off digits. We
+# first trained a classification model and found that the approach was
+# able to reach $97\%$ accuracy just from the raw soundwave. Next we
+# trained a generation model to produce the sound wave directly. With
+# $H=512$ the model seems to pick up the data relatively well. This
+# dataset only has around 3000 examples, but the model can produce
+# reasonably good (cherry-picked) continuations. Note these sequences are 6400 steps
+# long at an 8kHz sampling rate, discretized to 256 classes with
+# [Mu Law Encoding](https://en.wikipedia.org/wiki/%CE%9C-law_algorithm).
+
+# <center>
+# <img src='images/speech3.1.png' width='100%'>
+# <audio controls>
+#  <source src='images/sample3.1.wav' type='audio/wav'>
+# </audio>
+# <audio controls>
+#  <source src='images/sample3.1.gold.wav' type='audio/wav'>
+# </audio>
+#
+# <img src='images/speech6.1.png' width='100%'>
+# <audio controls>
+#  <source src='images/sample6.1.wav' type='audio/wav'>
+# </audio>
+# <audio controls>
+#  <source src='images/sample6.1.gold.wav' type='audio/wav'>
+# </audio>
+#
+# <img src='images/speech7.0.png' width='100%'>
+# <audio controls>
+#  <source src='images/sample7.0.wav' type='audio/wav'>
+# </audio>
+# <audio controls>
+#  <source src='images/sample7.0.gold.wav' type='audio/wav'>
+# </audio>
+#
+# <img src='images/speech9.0.png' width='100%'>
+# <audio controls>
+#  <source src='images/sample9.0.wav' type='audio/wav'>
+# </audio>
+# <audio controls>
+#  <source src='images/sample9.0.gold.wav' type='audio/wav'>
+# </audio>
+#
+# <img src='images/speech10.0.png' width='100%'>
+# <audio controls>
+#  <source src='images/sample10.0.wav' type='audio/wav'>
+# </audio>
+# <audio controls>
+#  <source src='images/sample10.0.gold.wav' type='audio/wav'>
+# </audio>
+#
+# <img src='images/speech13.1.png' width='100%'>
+# <audio controls>
+#  <source src='images/sample13.1.wav' type='audio/wav'>
+# </audio>
+# <audio controls>
+#  <source src='images/sample13.1.gold.wav' type='audio/wav'>
+# </audio>
+#
+# <img src='images/speech23.0.png' width='100%'>
+# <audio controls>
+#  <source src='images/sample23.0.wav' type='audio/wav'>
+# </audio>
+# <audio controls>
+#  <source src='images/sample23.0.gold.wav' type='audio/wav'>
+# </audio>
+#
+# <img src='images/speech25.0.png' width='100%'>
+# <audio controls>
+#  <source src='images/sample25.0.wav' type='audio/wav'>
+# </audio>
+# <audio controls>
+#  <source src='images/sample25.0.gold.wav' type='audio/wav'>
+# </audio>
+#
+# <img src='images/speech26.0.png' width='100%'>
+# <audio controls>
+#  <source src='images/sample26.0.wav' type='audio/wav'>
+# </audio>
+# <audio controls>
+#  <source src='images/sample26.0.gold.wav' type='audio/wav'>
+# </audio>
+#
+# <img src='images/speech26.1.png' width='100%'>
+# <audio controls>
+#  <source src='images/sample26.1.wav' type='audio/wav'>
+# </audio>
+# <audio controls>
+#  <source src='images/sample26.1.gold.wav' type='audio/wav'>
+# </audio>
+# </center>
 
 # Our [full code base](https://github.com/srush/annotated-s4/) contains
 # more examples and infrastructure for training models for generations and
@@ -1145,5 +1572,6 @@ sample_mnist()
 # [paper](https://arxiv.org/abs/2111.00396) and
 # [codebase](https://github.com/HazyResearch/state-spaces). We're also grateful for Conner Vercellino and
 # Laurel Orr for providing helpful feedback on this post.
+
 #
 # / Cheers – Sasha & Sidd
