@@ -479,6 +479,8 @@ class JPEG:
                 data = data[128:]
                 length -= 128
 
+            logger.debug(' '.join(list(map(str, self.quantization_tables[table_id]))))
+
         if length != 0:
             raise ValueError('Error - DQT invalid\n')
 
@@ -995,8 +997,8 @@ if __name__ == "__main__":
     jpeg_path = Path(__file__).resolve().parent.parent / 'jpegs' / 'kaori.jpg'
     flag = 1
 
-    jpeg_path = Path(__file__).resolve().parent.parent / 'jpegs' / 'pyramid.jpg'
-    flag = 1
+    # jpeg_path = Path(__file__).resolve().parent.parent / 'jpegs' / 'pyramid.jpg'
+    # flag = 1
 
     jpeg_path = Path(__file__).resolve().parent.parent / 'jpegs' / 'ILSVRC2012_val_00006216.JPEG'
     flag = 1
@@ -1010,16 +1012,16 @@ if __name__ == "__main__":
     # img is np.ndarray, of size (nrows, ncols, 3) if flag else (nrows, ncols)
 
     # encode to jpeg
-    quality = 75
+    quality = 50
 
     bytes_cv2 = compress_jpg(img, quality)
     bytes_tv = compress_jpg_torch(img, quality)
     bytes_sim = compress_jpg_simplejpeg(img, quality, colorsubsampling='444')
 
-    # jpg_bytes = bytes_file    # use original jpg code directly read from file
+    jpg_bytes = bytes_file    # use original jpg code directly read from file
     # jpg_bytes = bytes_cv2    # use cv2 compressed jpg code
     # jpg_bytes = bytes_tv    # use torchvision compressed jpg code
-    jpg_bytes = bytes_sim    # use simplejpeg compressed jpg code
+    # jpg_bytes = bytes_sim    # use simplejpeg compressed jpg code
 
     jpg = JPEG(jpeg_bytes=jpg_bytes, verbose=True, verbose_details=True)
     width, height, image = jpg.decode()

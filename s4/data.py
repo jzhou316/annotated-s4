@@ -9,6 +9,8 @@ from tqdm import tqdm
 
 from .data_jpeg_dct import (create_mnist_jpeg_classification_dataset,
                             create_mnist_jpeg_dct_classification_dataset)
+from .data_jpeg_huffman import (create_mnist_jpeg_huffdec_stream_classification_dataset,
+                                create_mnist_jpeg_huffdec_wzeros_stream_classification_dataset)
 
 
 # ### $sin(x)$
@@ -296,6 +298,9 @@ Datasets = {
     "sin_noise": create_sin_ax_b_dataset,
     "mnist-classification": create_mnist_classification_dataset,
     "cifar-classification": create_cifar_classification_dataset,
+    # JPEG code classification
     "mnist-jpeg-classification": create_mnist_jpeg_classification_dataset,
     'mnist-jpeg-dct-classification': create_mnist_jpeg_dct_classification_dataset,
+    "mnist-jpeg-huffdec-stream-classification": create_mnist_jpeg_huffdec_stream_classification_dataset,
+    "mnist-jpeg-huffdec-wzeros-stream-classification": create_mnist_jpeg_huffdec_wzeros_stream_classification_dataset,
 }
