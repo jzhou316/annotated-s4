@@ -8,8 +8,16 @@ from flax import linen as nn
 from flax.training import checkpoints, train_state
 from tqdm import tqdm
 from .data import Datasets
-from .s4 import BatchSeqModel, S4LayerInit, SSMInit
+from .dss import DSSLayerInit
+from .s4 import BatchStackedModel, S4LayerInit, SSMInit
 
+
+try:
+    import wandb
+
+    assert hasattr(wandb, "__version__")  # verify package import not local dir
+except (ImportError, AssertionError):
+    wandb = None
 
 # ## Baseline Models
 #
@@ -84,8 +92,8 @@ def create_train_state(
             transition_steps=int(0.7 * total_steps),
         )
 
-    # S4 uses a Fixed LR = 1e-3 with NO weight decay for the S4 Matrices, higher LR elsewhere
-    if "s4" in model_name:
+    # # S4 uses a Fixed LR = 1e-3 with NO weight decay for the S4 Matrices, higher LR elsewhere
+    if "s4" in model_name or "dss" in model_name:
         # Note for Debugging... this is all undocumented and so weird. The following links are helpful...
         #
         #   > Flax "Recommended" interplay w/ Optax (this bridge needs ironing):
@@ -101,11 +109,12 @@ def create_train_state(
         #   > Solution: Use Optax.multi_transform!
         s4_fn = map_nested_fn(
             lambda k, _: "s4"
-            if k in ["B", "C", "Ct", "D", "log_step"]
-            else "regular"
+            if k in ["B", "Ct", "D", "log_step", "W"]
+            else ("none" if k in [] else "regular")
         )
         tx = optax.multi_transform(
             {
+                "none": optax.sgd(learning_rate=0.0),
                 "s4": optax.adam(learning_rate=1e-3),
                 "regular": optax.adamw(learning_rate=lr, weight_decay=0.01),
             },
@@ -160,8 +169,6 @@ def validate(params, model, testloader, classification=False):
         losses.append(loss)
         accuracies.append(acc)
 
-    # Sampling autoregressively prompted w/ first 100 "tokens"...
-    #   => TODO @Sidd
     return np.mean(np.array(losses)), np.mean(np.array(accuracies))
 
 
@@ -266,6 +273,7 @@ Models = {
     "lstm": LSTMRecurrentModel,
     "ssm-naive": SSMInit,
     "s4": S4LayerInit,
+    "dss": DSSLayerInit,
 }
 
 
@@ -281,15 +289,21 @@ def example_train(
     n_layers=4,
     p_dropout=0.2,
     suffix=None,
+    use_wandb=True,
+    wandb_project="s4",
+    wandb_entity=None,
 ):
     # Set randomness...
     print("[*] Setting Randomness...")
     key = jax.random.PRNGKey(0)
     key, rng, train_rng = jax.random.split(key, num=3)
 
+    if use_wandb:
+        wandb.init(project=wandb_project, entity=wandb_entity)
+
     # Get model class and dataset creation function
     create_dataset_fn = Datasets[dataset]
-    if model in ["ssm-naive", "s4"]:
+    if model in ["ssm-naive", "s4", "dss"]:
         model_cls = Models[model](N=ssm_n)
     else:
         model_cls = Models[model]
@@ -305,7 +319,7 @@ def example_train(
     print(f"[*] Starting `{model}` Training on `{dataset}` =>> Initializing...")
 
     model_cls = partial(
-        BatchSeqModel,
+        BatchStackedModel,
         layer=model_cls,
         d_model=d_model,
         d_output=n_classes,
@@ -350,9 +364,9 @@ def example_train(
         )
 
         # Save a checkpoint each epoch & handle best (test loss... not "copacetic" but ehh)
-        run_id = f"checkpoints/{dataset}/{model}-d{d_model}-ep{epochs}" + (
-            f"-{suffix}" if suffix is not None else ""
-        )
+        suf = f"-{suffix}" if suffix is not None else ""
+        run_id = f"checkpoints/{dataset}/{model}-d{d_model}-lr{lr}-bsz{bsz}-dp{p_dropout}-ep{epochs}{suf}"
+
         ckpt_path = checkpoints.save_checkpoint(
             run_id,
             state,
@@ -374,6 +388,18 @@ def example_train(
             f"\tBest Test Loss: {best_loss:.5f} -- Best Test Accuracy:"
             f" {best_acc:.4f} at Epoch {best_epoch + 1}\n"
         )
+
+        if use_wandb:
+            wandb.log(
+                {
+                    "Training Loss": train_loss,
+                    "Test Loss": test_loss,
+                    "Test Accuracy": test_acc,
+                }
+            )
+            wandb.run.summary["Best Test Loss"] = best_loss
+            wandb.run.summary["Best Test Accuracy"] = best_acc
+            wandb.run.summary["Best Epoch"] = best_epoch
 
 
 if __name__ == "__main__":
@@ -402,6 +428,26 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--lr_schedule", default=False, action="store_true")
 
+    # Weights and Biases Parameters
+    parser.add_argument(
+        "--use_wandb",
+        default=False,
+        type=bool,
+        help="Whether to use W&B for metric logging",
+    )
+    parser.add_argument(
+        "--wandb_project",
+        default="s4",
+        type=str,
+        help="Name of the W&B Project",
+    )
+    parser.add_argument(
+        "--wandb_entity",
+        default=None,
+        type=str,
+        help="entity to use for W&B logging",
+    )
+
     args = parser.parse_args()
 
     example_train(
@@ -416,4 +462,7 @@ if __name__ == "__main__":
         n_layers=args.n_layers,
         p_dropout=args.p_dropout,
         suffix=args.suffix,
+        use_wandb=args.use_wandb,
+        wandb_project=args.wandb_project,
+        wandb_entity=args.wandb_entity,
     )
