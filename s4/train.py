@@ -289,8 +289,8 @@ def example_train(
     n_layers=4,
     p_dropout=0.2,
     suffix=None,
-    use_wandb=True,
-    wandb_project="s4",
+    use_wandb=False,
+    wandb_project="",
     wandb_entity=None,
 ):
     # Set randomness...
@@ -298,8 +298,14 @@ def example_train(
     key = jax.random.PRNGKey(0)
     key, rng, train_rng = jax.random.split(key, num=3)
 
+    # model tag with configurations as identifiers, for logging (local, wandb) and checkpoint saving
+    suf = f"-{suffix}" if suffix else ""
+    model_name = f'{model}-lay{n_layers}-d{d_model}-lr{lr}-bsz{bsz}-dp{p_dropout}-ep{epochs}{suf}'
+
     if use_wandb:
-        wandb.init(project=wandb_project, entity=wandb_entity)
+        wandb.init(project=wandb_project or model, entity=wandb_entity,
+                   group=dataset,
+                   name=model_name)
 
     # Get model class and dataset creation function
     create_dataset_fn = Datasets[dataset]
@@ -364,8 +370,7 @@ def example_train(
         )
 
         # Save a checkpoint each epoch & handle best (test loss... not "copacetic" but ehh)
-        suf = f"-{suffix}" if suffix is not None else ""
-        run_id = f"checkpoints/{dataset}/{model}-d{d_model}-lr{lr}-bsz{bsz}-dp{p_dropout}-ep{epochs}{suf}"
+        run_id = f"checkpoints/{dataset}/{model_name}"
 
         ckpt_path = checkpoints.save_checkpoint(
             run_id,
@@ -402,6 +407,17 @@ def example_train(
             wandb.run.summary["Best Epoch"] = best_epoch
 
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -431,15 +447,16 @@ if __name__ == "__main__":
     # Weights and Biases Parameters
     parser.add_argument(
         "--use_wandb",
-        default=False,
-        type=bool,
+        type=str2bool,
+        nargs='?',
+        const=True, default=False,
         help="Whether to use W&B for metric logging",
     )
     parser.add_argument(
         "--wandb_project",
-        default="s4",
+        default="",
         type=str,
-        help="Name of the W&B Project",
+        help="Name of the W&B Project (default to model type, e.g. s4)",
     )
     parser.add_argument(
         "--wandb_entity",

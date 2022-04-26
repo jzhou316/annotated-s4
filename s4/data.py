@@ -5,14 +5,18 @@ import torch
 import torchtext
 import torchvision
 import torchvision.transforms as transforms
-from datasets import DatasetDict, load_dataset
+# from datasets import DatasetDict, load_dataset
 from torch.utils.data import TensorDataset, random_split
 from tqdm import tqdm
 
 from .data_jpeg_dct import (create_mnist_jpeg_classification_dataset,
-                            create_mnist_jpeg_dct_classification_dataset)
+                            create_mnist_jpeg_dct_classification_dataset,
+                            create_cifar_jpeg_dct_classification_dataset,
+                            create_cifar_jpeg_dct_stack_classification_dataset)
 from .data_jpeg_huffman import (create_mnist_jpeg_huffdec_stream_classification_dataset,
-                                create_mnist_jpeg_huffdec_wzeros_stream_classification_dataset)
+                                create_mnist_jpeg_huffdec_wzeros_stream_classification_dataset,
+                                create_cifar_jpeg_huffdec_stream_classification_dataset,
+                                create_cifar_jpeg_huffdec_wzeros_stream_classification_dataset)
 
 
 # ### $sin(x)$
@@ -674,8 +678,13 @@ Datasets = {
     # JPEG code classification
     "mnist-jpeg-classification": create_mnist_jpeg_classification_dataset,
     'mnist-jpeg-dct-classification': create_mnist_jpeg_dct_classification_dataset,
+    'cifar-jpeg-dct-classification': create_cifar_jpeg_dct_classification_dataset,
+    'cifar-jpeg-dct-stack-classification': create_cifar_jpeg_dct_stack_classification_dataset,
     "mnist-jpeg-huffdec-stream-classification": create_mnist_jpeg_huffdec_stream_classification_dataset,
     "mnist-jpeg-huffdec-wzeros-stream-classification": create_mnist_jpeg_huffdec_wzeros_stream_classification_dataset,
+    "cifar-jpeg-huffdec-stream-classification": create_cifar_jpeg_huffdec_stream_classification_dataset,
+    "cifar-jpeg-huffdec-wzeros-stream-classification": create_cifar_jpeg_huffdec_wzeros_stream_classification_dataset,
+    # ==========
     "imdb-classification": create_imdb_classification_dataset,
     "listops-classification": create_listops_classification_dataset,
 }

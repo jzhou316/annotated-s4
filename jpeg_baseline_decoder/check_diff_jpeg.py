@@ -64,6 +64,7 @@ def compress_jpg_simplejpeg(img: np.ndarray, quality: int, colorsubsampling: str
         colorspace = 'GRAY'
     elif img.ndim == 3:
         # RGB, 3 channels
+        img = np.ascontiguousarray(img)    # make it C contiguous
         colorspace = 'RGB'
 
     jpg_bytes = simplejpeg.encode_jpeg(img, quality=quality, colorspace=colorspace, colorsubsampling=colorsubsampling)
