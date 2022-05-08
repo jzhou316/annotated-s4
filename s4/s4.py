@@ -380,7 +380,8 @@ def non_circular_convolution(u, K, nofft=False):
     if nofft:
         return convolve(u, K, mode="full")[: u.shape[0]]
     else:
-        assert K.shape[0] == u.shape[0]
+        # assert K.shape[0] == u.shape[0]
+        # assert K.shape[0] == u.shape[0]    # NOTE commented to allow shorter kernel?
         ud = np.fft.rfft(np.pad(u, (0, K.shape[0])))
         Kd = np.fft.rfft(np.pad(K, (0, u.shape[0])))
         out = ud * Kd
@@ -670,6 +671,7 @@ class StackedModel(nn.Module):
                 dropout=self.dropout,
                 training=self.training,
                 l_max=self.l_max,
+                # l_max=64 if _ == 0 else self.l_max,    # first layer to have kernel size 64 steps
                 decode=self.decode,
             )
             for _ in range(self.n_layers)

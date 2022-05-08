@@ -7,7 +7,7 @@ set -o pipefail
 DEBUG=0
 
 
-DATASET=cifar-classification
+DATASET=cifar-blockseq-classification
 
 MODEL=s4
 D_MODEL=512

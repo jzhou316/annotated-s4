@@ -26,6 +26,7 @@ set -o nounset
 
 gpu=${2:-3}
 
+debug=${DEBUG:-1}    # debug mode for development: no logging, iteractive run in console
 
 ##### default configs
 dataset=${DATASET:-cifar-classification}
@@ -38,7 +39,7 @@ dp=${DP:-0.25}
 ep=${EP:-100}
 suffix=${SUFFIX:-""}
 if [[ ! -z $suffix ]]; then
-    suf="-{$suffix}"
+    suf="-$suffix"
 else
     suf=""
 fi
@@ -47,6 +48,10 @@ checkpoints_dir=checkpoints/${dataset}/${model}-lay${n_layers}-d${d_model}-lr${l
 # this is consistent with inside the python training script
 log_file=${checkpoints_dir}/train.log
 
+
+# ===== run training
+
+if [[ $debug == "0" ]]; then
 
 # check if model checkpoints folder already exists
 if [[ -d ${checkpoints_dir} ]]; then
@@ -78,3 +83,22 @@ CUDA_VISIBLE_DEVICES=$gpu python -m s4.train \
     --use_wandb True \
     --suffix "$suffix" \
     &> $log_file &
+
+
+else
+
+# in debug mode: print out the information, no wandb logging, and exit epoch 3
+
+CUDA_VISIBLE_DEVICES=$gpu python -m s4.train \
+    --dataset $dataset \
+    --model $model \
+    --d_model $d_model \
+    --n_layers $n_layers \
+    --bsz $bsz \
+    --epoch 3 \
+    --lr $lr \
+    --p_dropout $dp \
+    --use_wandb False \
+    --suffix "${suffix}-debug"
+
+fi

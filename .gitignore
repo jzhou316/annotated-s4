@@ -122,6 +122,9 @@ wandb*
 # dependency
 jpeg2dct
 
+# dataset
+SpeechCommands
+
 # Spyder project settings
 .spyderproject
 .spyproject

@@ -332,6 +332,7 @@ def example_train(
         dropout=p_dropout,
         n_layers=n_layers,
         l_max=seq_len if classification else seq_len - 1,
+        # l_max=64,    # NOTE shorter kernel size
         classification=classification,
     )
     state = create_train_state(
@@ -341,6 +342,7 @@ def example_train(
         in_dim=in_dim,
         bsz=bsz,
         seq_len=seq_len if classification else seq_len - 1,
+        # seq_len=64,    # NOTE shorter kernel size
         lr=lr,
         lr_schedule=lr_schedule,
         total_steps=len(trainloader) * epochs,

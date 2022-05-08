@@ -291,7 +291,8 @@ def create_cifar_jpeg_huffdec_stream_classification_dataset(bsz=128, quality=75)
 # **Task**: Predict CIFAR-10 class given sequence model over over pixels transformed to Huffman decoded stream,
 #           with zero-run length recovered to actual zeros from
 #           compressed JPEG codes (32 x 32 x 3 = 1024 x 3 => 10 classes).
-def create_cifar_jpeg_huffdec_wzeros_stream_classification_dataset(bsz=128, quality=75):
+# def create_cifar_jpeg_huffdec_wzeros_stream_classification_dataset(bsz=128, quality=75):
+def create_cifar_jpeg_huffdec_wzeros_stream_classification_dataset(bsz=128, quality=100):
     print("[*] Generating CIFAR-10 JPEG Huffman Decoding with Zeros Stream Classification Dataset")
 
     # Constants

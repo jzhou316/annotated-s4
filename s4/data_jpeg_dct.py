@@ -324,7 +324,8 @@ def create_cifar_jpeg_dct_classification_dataset(bsz=128, quality=75):
 # ### CIFAR-10 Classification
 # **Task**: Predict CIFAR-10 class given sequence model over pixels transformed to DCT coefficients from
 #           compressed JPEG codes (32 x 32 x 3 YCbCr DCT coefficients => 10 classes).
-def create_cifar_jpeg_dct_stack_classification_dataset(bsz=128, quality=75):
+# def create_cifar_jpeg_dct_stack_classification_dataset(bsz=128, quality=75):
+def create_cifar_jpeg_dct_stack_classification_dataset(bsz=128, quality=100):
     print("[*] Generating CIFAR-10 JPEG DCT Coefficients Stacked Classification Dataset")
 
     # Constants

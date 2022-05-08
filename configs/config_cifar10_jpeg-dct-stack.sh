@@ -4,6 +4,9 @@ set -e
 set -o pipefail
 
 
+DEBUG=0
+
+
 DATASET=cifar-jpeg-dct-stack-classification
 
 MODEL=s4
@@ -14,3 +17,6 @@ BSZ=64
 DP=0.25
 EP=500
 SUFFIX=""
+
+EP=500
+SUFFIX="lmax64"

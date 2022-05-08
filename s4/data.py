@@ -9,6 +9,8 @@ import torchvision.transforms as transforms
 from torch.utils.data import TensorDataset, random_split
 from tqdm import tqdm
 
+from .data_cifar_blockseq import (create_cifar_blockseq_classification_dataset,
+                                  create_cifar_nonorm_classification_dataset)
 from .data_jpeg_dct import (create_mnist_jpeg_classification_dataset,
                             create_mnist_jpeg_dct_classification_dataset,
                             create_cifar_jpeg_dct_classification_dataset,
@@ -675,6 +677,9 @@ Datasets = {
     "mnist-classification": create_mnist_classification_dataset,
     "fsdd-classification": create_fsdd_classification_dataset,
     "cifar-classification": create_cifar_classification_dataset,
+    # different linearization method
+    'cifar-blockseq-classification': create_cifar_blockseq_classification_dataset,
+    'cifar-nonorm-classification': create_cifar_nonorm_classification_dataset,
     # JPEG code classification
     "mnist-jpeg-classification": create_mnist_jpeg_classification_dataset,
     'mnist-jpeg-dct-classification': create_mnist_jpeg_dct_classification_dataset,

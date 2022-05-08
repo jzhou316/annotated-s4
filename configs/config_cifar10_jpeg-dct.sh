@@ -4,6 +4,9 @@ set -e
 set -o pipefail
 
 
+DEBUG=0
+
+
 DATASET=cifar-jpeg-dct-classification
 
 MODEL=s4
